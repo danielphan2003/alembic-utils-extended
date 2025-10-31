@@ -15,6 +15,7 @@ from typing import (
 
 from alembic.autogenerate import comparators
 from alembic.autogenerate.api import AutogenContext
+from alembic.operations import Operations
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import TextClause
 
@@ -318,6 +319,13 @@ def compare_registered_entities(
         transaction = connection.begin_nested()
         sess = Session(bind=connection)
         try:
+            # Execute any operations that were produced by alembic proper
+            # in case and replaceable entities depend on them
+            # https://alembic.sqlalchemy.org/en/latest/cookbook.html#run-alembic-operation-objects-directly-as-in-from-autogenerate
+            ops = Operations(autogen_context.migration_context)
+            for uop in upgrade_ops.ops:
+                ops.invoke(uop)
+
             maybe_op = entity.get_required_migration_op(sess, dependencies=has_create_or_update_op)
 
             local_db_def = entity.get_database_definition(sess, dependencies=has_create_or_update_op)
